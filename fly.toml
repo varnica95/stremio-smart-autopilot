@@ -1,6 +1,6 @@
 # Fly.io configuration. Launch from the dashboard (Launch an App → GitHub) or with `fly launch`.
-# Change `app` if the name is taken; the public URL becomes https://<app>.fly.dev
-app = "stremio-smart-autopilot"
+# App names are unique across Fly.io; change `app` if this one is taken.
+app = "smart-autopilot-varnica95"
 primary_region = "fra"
 
 [build]

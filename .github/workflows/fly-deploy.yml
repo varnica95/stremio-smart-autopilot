@@ -1,0 +1,22 @@
+name: Deploy to Fly.io
+# Run manually: GitHub → Actions → "Deploy to Fly.io" → Run workflow.
+# Needs a repository secret FLY_API_TOKEN (Fly dashboard → Account → Access Tokens).
+on:
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency: fly-deploy
+    steps:
+      - uses: actions/checkout@v5
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Create the app if it does not exist yet
+        run: |
+          APP=$(grep -E '^app = ' fly.toml | sed -E 's/app = "(.*)"/\1/')
+          flyctl status --app "$APP" >/dev/null 2>&1 || flyctl apps create "$APP"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Deploy
+        run: flyctl deploy --remote-only --ha=false
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

@@ -106,7 +106,7 @@ The server prints its URLs on start:
 
 1. Push this project to a GitHub repository.
 2. In the Fly.io dashboard: **Launch an App → GitHub**, choose the repository. Fly builds the included `Dockerfile` using `fly.toml`.
-3. If the app name `stremio-smart-autopilot` is taken, pick another; the address becomes `https://<name>.fly.dev` and is detected automatically from `FLY_APP_NAME`.
+3. App names are unique across Fly.io; `fly.toml` uses `smart-autopilot-varnica95`. If it is taken, pick another; the address becomes `https://<name>.fly.dev` and is detected automatically from `FLY_APP_NAME`.
 4. Optionally add secrets `OPENSUBTITLES_API_KEY` / `TMDB_API_KEY` (users can also enter their own OpenSubtitles key on `/configure`).
 5. Open `https://<name>.fly.dev/configure` and install.
 
