@@ -3,7 +3,7 @@ import { createSilentLogger } from '../../src/infrastructure/logging/logger.js';
 import { CinemetaProvider, parseRuntimeMinutes } from '../../src/providers/metadata/cinemeta.js';
 import { InternetArchiveProvider } from '../../src/providers/streams/internet-archive.js';
 import { StremioAddonUpstreamProvider } from '../../src/providers/streams/stremio-addon-upstream.js';
-import { OpenSubtitlesProvider } from '../../src/providers/subtitles/opensubtitles.js';
+import { OpenSubtitlesProvider, userKeyToken } from '../../src/providers/subtitles/opensubtitles.js';
 import { EPISODE, MOVIE, fakeFetch, jsonResponse } from '../helpers/factories.js';
 
 const signal = new AbortController().signal;
@@ -122,6 +122,53 @@ describe('OpenSubtitles provider', () => {
     expect(headers['Api-Key']).toBe('KEY');
     expect(subs).toHaveLength(1);
     expect(subs[0]).toMatchObject({ id: '555', language: 'hr', hashMatch: true, url: 'http://addon.local/subtitles-file/opensubtitles/555.srt' });
+  });
+});
+
+describe('OpenSubtitles with a per-user key', () => {
+  const USER_KEY = 'UserKey1234567890abcdef';
+  const searchResult = {
+    data: [{ id: '1', attributes: { language: 'hr', release: 'Movie.2020', files: [{ file_id: 777, file_name: 'm.srt' }] } }],
+  };
+
+  function recordingFetch() {
+    const calls: Array<{ url: string; apiKey: string }> = [];
+    const fetchImpl = async (url: string | URL, init?: RequestInit) => {
+      const u = String(url);
+      calls.push({ url: u, apiKey: (init?.headers as Record<string, string> | undefined)?.['Api-Key'] ?? '' });
+      if (u.includes('/subtitles?')) return jsonResponse(searchResult);
+      if (u.endsWith('/download')) return jsonResponse({ link: 'https://dl.example/777.srt', remaining: 50 });
+      return new Response('1\n00:00:01,000 --> 00:00:02,000\nBok\n');
+    };
+    return { calls, fetchImpl };
+  }
+
+  it('uses the user key for search and keeps it out of the subtitle URL', async () => {
+    const { calls, fetchImpl } = recordingFetch();
+    const provider = new OpenSubtitlesProvider({ apiKey: 'ServerKey', userAgent: 'T', publicUrl: 'http://a' }, createSilentLogger(), fetchImpl);
+    const [sub] = await provider.findSubtitles(
+      { media: MOVIE, languages: ['hr'], file: {}, userCredentials: { opensubtitles: USER_KEY } },
+      signal,
+    );
+    expect(calls[0]?.apiKey).toBe(USER_KEY);
+    expect(sub?.url).toBe(`http://a/subtitles-file/opensubtitles/777.srt?u=${userKeyToken(USER_KEY)}`);
+    expect(sub?.url).not.toContain(USER_KEY);
+
+    // The download resolves the token back to the same user's key.
+    await provider.fetchSubtitleFile('777', signal, userKeyToken(USER_KEY));
+    expect(calls.find((c) => c.url.endsWith('/download'))?.apiKey).toBe(USER_KEY);
+  });
+
+  it('falls back to the server key, and returns nothing when there is no key at all', async () => {
+    const { calls, fetchImpl } = recordingFetch();
+    const withServerKey = new OpenSubtitlesProvider({ apiKey: 'ServerKey', userAgent: 'T', publicUrl: 'http://a' }, createSilentLogger(), fetchImpl);
+    const [sub] = await withServerKey.findSubtitles({ media: MOVIE, languages: ['hr'], file: {} }, signal);
+    expect(calls[0]?.apiKey).toBe('ServerKey');
+    expect(sub?.url).toBe('http://a/subtitles-file/opensubtitles/777.srt');
+
+    const noKey = new OpenSubtitlesProvider({ userAgent: 'T', publicUrl: 'http://a' }, createSilentLogger(), fetchImpl);
+    expect(await noKey.findSubtitles({ media: MOVIE, languages: ['hr'], file: {} }, signal)).toEqual([]);
+    await expect(noKey.fetchSubtitleFile('777', signal, 'f'.repeat(24))).rejects.toThrow('no OpenSubtitles API key');
   });
 });
 

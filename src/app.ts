@@ -85,23 +85,20 @@ export async function createApp(config: ServerConfig, logger: Logger, overrides:
     maxProbes: config.probe.maxStreams,
   });
 
-  const subtitleProviders: Array<SubtitleProvider & Partial<SubtitleFileSource>> =
-    overrides.subtitleProviders ??
-    (config.openSubtitles.apiKey
-      ? [
-          new OpenSubtitlesProvider(
-            {
-              apiKey: config.openSubtitles.apiKey,
-              userAgent: config.openSubtitles.userAgent,
-              username: config.openSubtitles.username,
-              password: config.openSubtitles.password,
-              publicUrl: config.publicUrl,
-            },
-            logger.child({ provider: 'opensubtitles' }),
-            fetchImpl,
-          ),
-        ]
-      : []);
+  // Always available: users can bring their own OpenSubtitles key even if the server has none.
+  const openSubtitles = new OpenSubtitlesProvider(
+    {
+      apiKey: config.openSubtitles.apiKey,
+      userAgent: config.openSubtitles.userAgent,
+      username: config.openSubtitles.username,
+      password: config.openSubtitles.password,
+      publicUrl: config.publicUrl,
+    },
+    logger.child({ provider: 'opensubtitles' }),
+    fetchImpl,
+    cache,
+  );
+  const subtitleProviders: Array<SubtitleProvider & Partial<SubtitleFileSource>> = overrides.subtitleProviders ?? [openSubtitles];
   const subtitleService = new SubtitleService(subtitleProviders, metadata, cache, logger.child({ svc: 'subtitles' }), {
     timeoutMs: config.providerTimeoutMs,
     ttlMs: config.cacheTtl.subtitlesMs,
@@ -135,6 +132,7 @@ export async function createApp(config: ServerConfig, logger: Logger, overrides:
       publicUrl: config.publicUrl,
       streamProviders: streamProviders.map((p) => p.name),
       subtitlesEnabled: subtitleService.enabled,
+      serverSubtitleKey: overrides.subtitleProviders ? subtitleService.enabled : openSubtitles.hasServerKey,
       originalLanguageAvailable: metadataProviders.some((p) => p.id === 'tmdb'),
       companionEnabled: Boolean(companion),
     },

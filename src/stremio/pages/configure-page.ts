@@ -6,6 +6,8 @@ export interface PageContext {
   prefs: UserPreferences;
   streamProviders: string[];
   subtitlesEnabled: boolean;
+  /** True when the server has its own OpenSubtitles key, so a personal key is optional. */
+  serverSubtitleKey: boolean;
   originalLanguageAvailable: boolean;
   companionEnabled: boolean;
 }
@@ -62,7 +64,13 @@ export function renderConfigurePage(ctx: PageContext): string {
     <strong>This server</strong>
     <ul>
       <li>Stream sources: ${providers}</li>
-      <li>Subtitles: ${ctx.subtitlesEnabled ? '<span class="ok">OpenSubtitles enabled</span>' : '<span class="warn">disabled (set OPENSUBTITLES_API_KEY)</span>'}</li>
+      <li>Subtitles: ${
+        !ctx.subtitlesEnabled
+          ? '<span class="warn">disabled</span>'
+          : ctx.serverSubtitleKey
+            ? '<span class="ok">OpenSubtitles enabled</span> (your own key below is optional)'
+            : '<span class="warn">add your OpenSubtitles API key below</span>'
+      }</li>
       <li>"Original language" subtitles: ${ctx.originalLanguageAvailable ? '<span class="ok">available</span>' : '<span class="warn">needs TMDB_API_KEY; skipped otherwise</span>'}</li>
       <li>Automatic fallback (companion): ${ctx.companionEnabled ? '<span class="ok">on</span>' : 'off'}</li>
     </ul>
@@ -87,6 +95,9 @@ export function renderConfigurePage(ctx: PageContext): string {
     <h2>Subtitles</h2>
     <label for="subtitleLanguages">Languages in priority order (ISO 639-1 codes, "original" = the film's own language)</label>
     <input id="subtitleLanguages" name="subtitleLanguages" type="text" value="${esc(p.subtitleLanguages.join(', '))}">
+    <label for="openSubtitlesApiKey">Your OpenSubtitles API key${ctx.serverSubtitleKey ? ' (optional)' : ''}</label>
+    <input id="openSubtitlesApiKey" name="openSubtitlesApiKey" type="password" autocomplete="off" spellcheck="false" value="${esc(p.openSubtitlesApiKey ?? '')}" placeholder="from opensubtitles.com → API consumers">
+    <p class="muted">Stored only inside your personal addon URL and sent only to OpenSubtitles. Anyone you give that URL to can use your download quota.</p>
     <label for="maxSubtitlesPerLanguage">Subtitles per language</label>
     <input id="maxSubtitlesPerLanguage" name="maxSubtitlesPerLanguage" type="number" min="1" max="20" value="${p.maxSubtitlesPerLanguage}">
     <p class="muted">Addons cannot switch subtitles on by themselves. In Stremio open Settings → Player and set the default subtitle language to your first choice (e.g. Croatian); Stremio then turns on the best-matching subtitle automatically.</p>
@@ -110,6 +121,8 @@ export function renderConfigurePage(ctx: PageContext): string {
     data.maxSubtitlesPerLanguage = Number(form.elements.maxSubtitlesPerLanguage.value) || 3;
     data.subtitleLanguages = form.elements.subtitleLanguages.value.split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
     ['preferSmallerFiles','preferCompatibleAudio','excludeLowQuality'].forEach(function (k) { data[k] = form.elements[k].checked; });
+    var key = form.elements.openSubtitlesApiKey.value.trim();
+    if (key) data.openSubtitlesApiKey = key;
     return data;
   }
   function update() {

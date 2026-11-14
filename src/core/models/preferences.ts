@@ -25,4 +25,6 @@ export interface UserPreferences {
   excludeLowQuality: boolean;
   maxResults: number;
   maxSubtitlesPerLanguage: number;
+  /** The user's own OpenSubtitles API key. Optional when the server has one. */
+  openSubtitlesApiKey?: string;
 }

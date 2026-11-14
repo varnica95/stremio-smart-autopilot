@@ -19,13 +19,17 @@ export const UserPreferencesSchema = z.object({
   excludeLowQuality: z.boolean().default(true),
   maxResults: z.number().int().min(1).max(50).default(10),
   maxSubtitlesPerLanguage: z.number().int().min(1).max(20).default(3),
+  openSubtitlesApiKey: z
+    .string()
+    .regex(/^[A-Za-z0-9]{16,64}$/, 'OpenSubtitles API keys are 16-64 letters and digits')
+    .optional(),
 });
 
 export const DEFAULT_PREFERENCES: UserPreferences = UserPreferencesSchema.parse({});
 
 const BOOLEAN_KEYS = new Set(['preferSmallerFiles', 'preferCompatibleAudio', 'excludeLowQuality']);
 const NUMBER_KEYS = new Set(['maxResults', 'maxSubtitlesPerLanguage']);
-const KNOWN_KEYS = new Set(Object.keys(DEFAULT_PREFERENCES));
+const KNOWN_KEYS = new Set([...Object.keys(DEFAULT_PREFERENCES), 'openSubtitlesApiKey']);
 
 /**
  * Accepts the loosely-typed values that arrive from the addon URL or form posts
@@ -46,6 +50,8 @@ export function normalizeRawPreferences(raw: unknown): Record<string, unknown> {
         .split(',')
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
+    } else if (key === 'openSubtitlesApiKey' && typeof value === 'string') {
+      out[key] = value.trim();
     } else if (key === 'subtitleLanguages' && Array.isArray(value)) {
       out[key] = value.map((s) => String(s).trim().toLowerCase()).filter(Boolean);
     } else {

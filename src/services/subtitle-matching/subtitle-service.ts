@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { SubtitleProvider } from '../../core/interfaces/providers.js';
 import { mediaKey, type MediaRequest } from '../../core/models/media.js';
 import type { UserPreferences } from '../../core/models/preferences.js';
@@ -34,8 +35,10 @@ export class SubtitleService {
     const languages = resolveLanguagePriority(prefs.subtitleLanguages, metadata.originalLanguage);
     if (languages.length === 0) return [];
 
+    const credentials: Record<string, string> = {};
+    if (prefs.openSubtitlesApiKey) credentials.opensubtitles = prefs.openSubtitlesApiKey;
     const results = await Promise.all(
-      this.providers.map((provider) => this.fromProvider(provider, media, languages, file, signal)),
+      this.providers.map((provider) => this.fromProvider(provider, media, languages, file, credentials, signal)),
     );
     return rankSubtitles(results.flat(), languages, file, prefs.maxSubtitlesPerLanguage);
   }
@@ -45,9 +48,13 @@ export class SubtitleService {
     media: MediaRequest,
     languages: string[],
     file: VideoFileHints,
+    credentials: Record<string, string>,
     signal?: AbortSignal,
   ): Promise<SubtitleCandidate[]> {
-    const key = `subs:${provider.id}:${mediaKey(media)}:${[...languages].sort().join(',')}:${file.videoHash ?? '-'}`;
+    // Results embed per-user download tokens, so users with different keys get separate cache entries.
+    const userKey = credentials[provider.id];
+    const owner = userKey ? createHash('sha256').update(userKey).digest('hex').slice(0, 12) : 'server';
+    const key = `subs:${provider.id}:${owner}:${mediaKey(media)}:${[...languages].sort().join(',')}:${file.videoHash ?? '-'}`;
     try {
       return await this.cache.getOrLoad<SubtitleCandidate[]>(
         key,
@@ -56,7 +63,7 @@ export class SubtitleService {
           withTimeout(
             `subtitles:${provider.id}`,
             this.options.timeoutMs,
-            (s) => provider.findSubtitles({ media, languages, file }, s),
+            (s) => provider.findSubtitles({ media, languages, file, userCredentials: credentials }, s),
             signal,
           ),
       );

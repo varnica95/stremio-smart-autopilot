@@ -50,6 +50,14 @@ describe('user preferences', () => {
     expect(prefs.preferredResolution).toBe('720p');
   });
 
+  it('accepts a personal OpenSubtitles key and rejects malformed ones', () => {
+    expect(parsePreferences({ openSubtitlesApiKey: '  AbCdEf0123456789xyz  ' }).prefs.openSubtitlesApiKey).toBe('AbCdEf0123456789xyz');
+    const bad = parsePreferences({ openSubtitlesApiKey: 'short' });
+    expect(bad.prefs.openSubtitlesApiKey).toBeUndefined();
+    expect(bad.issues[0]).toContain('openSubtitlesApiKey');
+    expect(bad.issues[0]).not.toContain('short');
+  });
+
   it('round-trips through the addon URL encoding', () => {
     const encoded = encodePreferencesForUrl({ maxResults: 3, subtitleLanguages: ['hr'] });
     expect(encoded).not.toContain('/');

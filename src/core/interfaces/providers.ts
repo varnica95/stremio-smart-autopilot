@@ -26,6 +26,8 @@ export interface SubtitleQuery {
   /** ISO 639-1 codes, in order of preference. */
   languages: string[];
   file: VideoFileHints;
+  /** Per-user credentials keyed by provider id (e.g. the user's own OpenSubtitles API key). */
+  userCredentials?: Record<string, string>;
 }
 
 export interface SubtitleProvider {
@@ -37,7 +39,12 @@ export interface SubtitleProvider {
 /** Returns the raw subtitle file for an id issued by the same provider. */
 export interface SubtitleFileSource {
   readonly id: string;
-  fetchSubtitleFile(fileId: string, signal: AbortSignal): Promise<{ body: Buffer; contentType: string }>;
+  /** `userToken` is the opaque reference that was put in the subtitle URL, if any. */
+  fetchSubtitleFile(
+    fileId: string,
+    signal: AbortSignal,
+    userToken?: string,
+  ): Promise<{ body: Buffer; contentType: string }>;
 }
 
 export interface MetadataProvider {

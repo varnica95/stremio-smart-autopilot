@@ -36,6 +36,7 @@ export function buildManifest(options: ManifestOptions): Manifest {
       { key: 'minResolution', type: 'select', title: 'Minimum resolution', options: [...SELECTABLE_RESOLUTIONS], default: d.minResolution },
       { key: 'maxResolution', type: 'select', title: 'Maximum resolution', options: [...SELECTABLE_RESOLUTIONS], default: d.maxResolution },
       { key: 'subtitleLanguages', type: 'text', title: 'Subtitle languages (ISO 639-1, comma separated; "original" allowed)', default: d.subtitleLanguages.join(',') },
+      { key: 'openSubtitlesApiKey', type: 'password', title: 'Your OpenSubtitles API key (optional if the server has one)' },
       { key: 'maxResults', type: 'number', title: 'Maximum results', default: String(d.maxResults) },
       { key: 'preferSmallerFiles', type: 'checkbox', title: 'Prefer smaller files when quality is comparable', default: d.preferSmallerFiles ? 'checked' : undefined },
       { key: 'preferCompatibleAudio', type: 'checkbox', title: 'Prefer widely compatible audio', default: d.preferCompatibleAudio ? 'checked' : undefined },

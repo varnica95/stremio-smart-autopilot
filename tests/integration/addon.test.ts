@@ -142,9 +142,11 @@ describe('HTTP server', () => {
 
   it('downloads subtitle files on demand and caches them', async () => {
     let downloads = 0;
+    const tokens: Array<string | undefined> = [];
     const source: SubtitleFileSource & FakeSubtitleProvider = Object.assign(new FakeSubtitleProvider('fake-subs', []), {
-      async fetchSubtitleFile(fileId: string) {
+      async fetchSubtitleFile(fileId: string, _signal: AbortSignal, userToken?: string) {
         downloads++;
+        tokens.push(userToken);
         return { body: Buffer.from(`1\n00:00:01,000 --> 00:00:02,000\nBok ${fileId}\n`), contentType: 'application/x-subrip; charset=utf-8' };
       },
     });
@@ -157,6 +159,11 @@ describe('HTTP server', () => {
     expect(await first.text()).toContain('Bok 42');
     await fetch(`${base}/subtitles-file/fake-subs/42.srt`);
     expect(downloads).toBe(1);
+
+    const token = 'a'.repeat(24);
+    await fetch(`${base}/subtitles-file/fake-subs/43.srt?u=${token}`);
+    await fetch(`${base}/subtitles-file/fake-subs/44.srt?u=not-a-token`);
+    expect(tokens).toEqual([undefined, token, undefined]);
   });
 });
 

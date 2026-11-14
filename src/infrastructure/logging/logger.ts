@@ -8,7 +8,17 @@ export function createLogger(level: string): Logger {
     level,
     base: { app: 'smart-autopilot' },
     redact: {
-      paths: ['apiKey', 'password', 'token', 'headers.Api-Key', 'headers.Authorization', '*.apiKey'],
+      paths: [
+        'apiKey',
+        'password',
+        'token',
+        'openSubtitlesApiKey',
+        '*.openSubtitlesApiKey',
+        'config',
+        'headers.Api-Key',
+        'headers.Authorization',
+        '*.apiKey',
+      ],
       censor: '[redacted]',
     },
   });

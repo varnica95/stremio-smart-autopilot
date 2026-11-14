@@ -47,7 +47,13 @@ export function createRequestHandler(deps: ServerDeps) {
   const subtitleLimiter = new KeyedRateLimiter(60, 60_000);
   const subtitleSources = new Map(deps.subtitleSources.map((s) => [s.id, s]));
 
-  async function serveSubtitleFile(req: IncomingMessage, res: ServerResponse, providerId: string, fileId: string): Promise<void> {
+  async function serveSubtitleFile(
+    req: IncomingMessage,
+    res: ServerResponse,
+    providerId: string,
+    fileId: string,
+    userToken: string | undefined,
+  ): Promise<void> {
     const source = subtitleSources.get(providerId);
     if (!source) return sendText(res, 404, 'Unknown subtitle provider');
     if (!subtitleLimiter.allow(clientIp(req))) return sendText(res, 429, 'Too many subtitle downloads; slow down.');
@@ -57,7 +63,7 @@ export function createRequestHandler(deps: ServerDeps) {
         `subfile:${providerId}:${fileId}`,
         SUBTITLE_FILE_TTL_MS,
         async () => {
-          const result = await source.fetchSubtitleFile(fileId, AbortSignal.timeout(15_000));
+          const result = await source.fetchSubtitleFile(fileId, AbortSignal.timeout(15_000), userToken);
           return { base64: result.body.toString('base64'), contentType: result.contentType };
         },
       );
@@ -106,7 +112,11 @@ export function createRequestHandler(deps: ServerDeps) {
       if (path === '/status') return sendHtml(res, renderStatusPage(deps.status()));
 
       const subMatch = /^\/subtitles-file\/([a-z0-9-]+)\/([A-Za-z0-9_-]+)\.srt$/.exec(path);
-      if (subMatch?.[1] && subMatch[2]) return await serveSubtitleFile(req, res, subMatch[1], subMatch[2]);
+      if (subMatch?.[1] && subMatch[2]) {
+        const token = url.searchParams.get('u');
+        const userToken = token && /^[a-f0-9]{24}$/.test(token) ? token : undefined;
+        return await serveSubtitleFile(req, res, subMatch[1], subMatch[2], userToken);
+      }
 
       const playMatch = /^\/companion\/play\/([0-9a-f-]{36})\/(\d+)$/.exec(path);
       if (playMatch?.[1] && playMatch[2]) {

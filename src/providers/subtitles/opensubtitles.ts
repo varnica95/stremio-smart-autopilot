@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import type { SubtitleFileSource, SubtitleProvider, SubtitleQuery } from '../../core/interfaces/providers.js';
 import type { SubtitleCandidate } from '../../core/models/subtitle.js';
 import { HttpError, requestJson, type FetchLike } from '../../infrastructure/http/http-client.js';
 import type { Logger } from '../../infrastructure/logging/logger.js';
+import { MemoryStore } from '../../services/caching/memory-store.js';
 import { RateLimiter } from '../../utils/rate-limiter.js';
 
 const API = 'https://api.opensubtitles.com/api/v1';
@@ -24,8 +26,21 @@ interface SearchResponse {
   }>;
 }
 
+/** Where user keys are remembered, so subtitle URLs only need to carry an opaque token. */
+export interface KeyRegistry {
+  get<T>(key: string): T | undefined;
+  set<T>(key: string, value: T, ttlMs: number): void;
+}
+
+const USER_KEY_TTL_MS = 30 * 24 * 3_600_000;
+
+export function userKeyToken(apiKey: string): string {
+  return createHash('sha256').update(apiKey).digest('hex').slice(0, 24);
+}
+
 export interface OpenSubtitlesOptions {
-  apiKey: string;
+  /** Server-wide key. Optional: users can supply their own on the configure page. */
+  apiKey?: string;
   userAgent: string;
   username?: string;
   password?: string;
@@ -34,7 +49,11 @@ export interface OpenSubtitlesOptions {
 }
 
 /**
- * OpenSubtitles.com REST API (v1). Requires your own API key from opensubtitles.com.
+ * OpenSubtitles.com REST API (v1). Uses the user's own API key when they configured one,
+ * otherwise the server's key. With neither, it returns no subtitles.
+ *
+ * A user's key never appears in subtitle URLs: they carry a hash-derived token instead, and the
+ * server looks the key up in its registry when the player downloads the file.
  *
  * Search results are free; each actual download counts against your quota. To avoid spending the
  * quota on subtitles nobody opens, the addon returns links to its own /subtitles-file route and
@@ -51,18 +70,31 @@ export class OpenSubtitlesProvider implements SubtitleProvider, SubtitleFileSour
     private readonly options: OpenSubtitlesOptions,
     private readonly logger: Logger,
     private readonly fetchImpl: FetchLike = fetch,
+    private readonly keys: KeyRegistry = new MemoryStore(),
   ) {}
 
-  private headers(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Api-Key': this.options.apiKey,
-      'User-Agent': this.options.userAgent,
-    };
-    if (this.token && this.token.expiresAt > Date.now()) headers.Authorization = `Bearer ${this.token.value}`;
+  get hasServerKey(): boolean {
+    return Boolean(this.options.apiKey);
+  }
+
+  /** The server's login token is only valid together with the server's own API key. */
+  private headers(apiKey: string): Record<string, string> {
+    const headers: Record<string, string> = { 'Api-Key': apiKey, 'User-Agent': this.options.userAgent };
+    const isServerKey = apiKey === this.options.apiKey;
+    if (isServerKey && this.token && this.token.expiresAt > Date.now()) headers.Authorization = `Bearer ${this.token.value}`;
     return headers;
   }
 
   async findSubtitles(query: SubtitleQuery, signal: AbortSignal): Promise<SubtitleCandidate[]> {
+    const userKey = query.userCredentials?.[this.id];
+    const apiKey = userKey ?? this.options.apiKey;
+    if (!apiKey) return [];
+    let userToken: string | undefined;
+    if (userKey) {
+      userToken = userKeyToken(userKey);
+      this.keys.set(`oskey:${userToken}`, userKey, USER_KEY_TTL_MS);
+    }
+
     const { media, file } = query;
     const numericImdb = String(Number(media.imdbId.replace(/^tt/, '')));
     const params: Record<string, string> = {
@@ -81,13 +113,14 @@ export class OpenSubtitlesProvider implements SubtitleProvider, SubtitleFileSour
     const search = new URLSearchParams(Object.entries(params).sort(([a], [b]) => a.localeCompare(b)));
     const data = await requestJson<SearchResponse>(this.fetchImpl, `${API}/subtitles?${search}`, {
       signal,
-      headers: this.headers(),
+      headers: this.headers(apiKey),
       rateLimiter: this.limiter,
     });
-    return this.normalize(data);
+    return this.normalize(data, userToken);
   }
 
-  normalize(data: SearchResponse): SubtitleCandidate[] {
+  normalize(data: SearchResponse, userToken?: string): SubtitleCandidate[] {
+    const suffix = userToken ? `?u=${userToken}` : '';
     const out: SubtitleCandidate[] = [];
     for (const item of data.data ?? []) {
       const a = item.attributes;
@@ -106,19 +139,26 @@ export class OpenSubtitlesProvider implements SubtitleProvider, SubtitleFileSour
         hearingImpaired: a.hearing_impaired === true,
         machineTranslated: a.machine_translated === true || a.ai_translated === true,
         fromTrustedUploader: a.from_trusted === true,
-        url: `${this.options.publicUrl}/subtitles-file/${this.id}/${file.file_id}.srt`,
+        url: `${this.options.publicUrl}/subtitles-file/${this.id}/${file.file_id}.srt${suffix}`,
       });
     }
     return out;
   }
 
-  async fetchSubtitleFile(fileId: string, signal: AbortSignal): Promise<{ body: Buffer; contentType: string }> {
+  async fetchSubtitleFile(
+    fileId: string,
+    signal: AbortSignal,
+    userToken?: string,
+  ): Promise<{ body: Buffer; contentType: string }> {
     if (!/^\d+$/.test(fileId)) throw new HttpError(400, `${API}/download`, 'invalid subtitle id');
-    await this.ensureLogin(signal);
+    const userKey = userToken ? this.keys.get<string>(`oskey:${userToken}`) : undefined;
+    const apiKey = userKey ?? this.options.apiKey;
+    if (!apiKey) throw new Error('no OpenSubtitles API key for this download; reopen the title so the addon sees your key again');
+    if (!userKey) await this.ensureLogin(signal);
     const download = await requestJson<{ link?: string; remaining?: number }>(this.fetchImpl, `${API}/download`, {
       signal,
       method: 'POST',
-      headers: this.headers(),
+      headers: this.headers(apiKey),
       body: { file_id: Number(fileId) },
       rateLimiter: this.limiter,
     });
@@ -136,14 +176,14 @@ export class OpenSubtitlesProvider implements SubtitleProvider, SubtitleFileSour
 
   /** Logging in is optional; it raises the daily download quota for the account. */
   private async ensureLogin(signal: AbortSignal): Promise<void> {
-    const { username, password } = this.options;
-    if (!username || !password) return;
+    const { username, password, apiKey } = this.options;
+    if (!username || !password || !apiKey) return;
     if (this.token && this.token.expiresAt > Date.now()) return;
     try {
       const res = await requestJson<{ token?: string }>(this.fetchImpl, `${API}/login`, {
         signal,
         method: 'POST',
-        headers: this.headers(),
+        headers: this.headers(apiKey),
         body: { username, password },
         rateLimiter: this.limiter,
       });

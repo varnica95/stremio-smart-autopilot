@@ -97,7 +97,7 @@ The server prints its URLs on start:
 
 1. Push this project to a GitHub repository.
 2. On render.com: **New → Blueprint**, choose the repository. `render.yaml` sets everything up.
-3. When asked, paste your `OPENSUBTITLES_API_KEY` (and optionally `TMDB_API_KEY`).
+3. Optionally set `OPENSUBTITLES_API_KEY` (users can also enter their own on `/configure`) and `TMDB_API_KEY`.
 4. After the deploy finishes, open `https://<your-service>.onrender.com/configure` and install it.
 
 `PUBLIC_URL` is filled in automatically from Render's `RENDER_EXTERNAL_URL`. Free instances sleep after about 15 minutes idle, so the first request after a break takes up to a minute. Link tests then describe Render's network, not yours.
@@ -117,6 +117,7 @@ Set on the `/configure` page and stored in the addon URL itself, so different pe
 | Minimum / maximum resolution | 720p / 2160p | Streams outside are hidden (unless nothing else exists) |
 | Subtitle languages | `hr, en, original` | ISO 639-1 codes in priority order; `original` = the title's own language |
 | Subtitles per language | 3 | |
+| Your OpenSubtitles API key | – | Optional if the server has one. Stored only in your addon URL; subtitle links carry a hash-derived token, never the key |
 | Maximum results | 10 | |
 | Prefer smaller files when quality is comparable | on | |
 | Prefer compatible audio | on | AAC/AC3/E-AC3 over DTS/TrueHD, which many TVs, phones and browsers cannot play |
@@ -134,7 +135,7 @@ See [`.env.example`](.env.example) for every option with comments. The important
 | `STREAM_PROVIDERS` | `internet-archive,local-library,upstream` | Which built-in providers to enable |
 | `LIBRARY_FILE` | – | JSON file with your own media ([example](examples/library.json)) |
 | `UPSTREAM_ADDONS` | `[]` | Other Stremio addons to include in ranking (JSON list of `{id,name,url}`) |
-| `OPENSUBTITLES_API_KEY` | – | Enables subtitles |
+| `OPENSUBTITLES_API_KEY` | – | Server-wide fallback key. Optional: users can enter their own on `/configure` |
 | `TMDB_API_KEY` | – | Enables the "original language" subtitle preference |
 | `PROBE_ENABLED` / `PROBE_MAX_STREAMS` | `true` / `6` | Test the top HTTP links before answering |
 | `PROVIDER_TIMEOUT_MS` | `6000` | Time budget per provider |
@@ -193,7 +194,7 @@ Night of the Living Dead · h.264
 
 ## Subtitles
 
-- Provider: **OpenSubtitles.com REST API**, with your own API key. Searches by IMDb id (or parent IMDb id + season + episode), and by the **file hash** Stremio computes for the file you play.
+- Provider: **OpenSubtitles.com REST API**. Each user can enter their own API key on the configure page; otherwise the server's key is used. Searches by IMDb id (or parent IMDb id + season + episode), and by the **file hash** Stremio computes for the file you play.
 - Order: language priority first (Croatian → English → original), then sync likelihood: exact hash match ≫ same release name/group ≫ same source family (Blu-ray vs WEB vs DVD) and matching frame rate (a 25 fps subtitle on a 23.976 fps film drifts within minutes). Machine-translated subtitles are pushed down. Duplicates are removed.
 - Download quota: OpenSubtitles counts downloads, not searches. AutoPilot returns links to its own `/subtitles-file/...` route and only downloads a file when the player actually opens it, then caches it for 24 h.
 - Language codes are returned as ISO 639-2 (`hrv`, `eng`), which Stremio displays and matches against its *Default subtitle language* setting.
@@ -326,7 +327,7 @@ All tests use mocked providers or local throw-away HTTP servers; none contact re
 | Stremio refuses to install the addon | Remote installs need HTTPS. Use `http://127.0.0.1` only from the same computer. |
 | No streams at all | Open `/status`. If providers show failures, check network access and `PROVIDER_TIMEOUT_MS`. If they answered but found nothing, the title is simply not in your sources (Internet Archive covers few modern films). |
 | A single "⚠️ No streams" entry | Every provider failed or timed out; tap it to open `/status`. Results are cached briefly, so retry after a minute. |
-| No subtitles listed | Set `OPENSUBTITLES_API_KEY`; the configure page shows whether subtitles are enabled. Check the log for `Subtitle provider failed`. |
+| No subtitles listed | Enter your OpenSubtitles key on `/configure` and reinstall, or set `OPENSUBTITLES_API_KEY` on the server. Check the log for `Subtitle provider failed` (a 401 means the key is wrong). |
 | Subtitles listed but not shown | Set *Default subtitle language* in Stremio's player settings. |
 | Subtitle out of sync | Pick the next one in the list; hash matches come first only when Stremio could compute the file hash. |
 | "This stream link has expired" | Companion sessions last `COMPANION_SESSION_TTL_H` hours. Reopen the title. |
