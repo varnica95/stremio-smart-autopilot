@@ -81,7 +81,8 @@ declare module 'stremio-addon-sdk' {
 
   export interface AddonInterface {
     manifest: Manifest;
-    get(args: { resource: string } & HandlerArgs): Promise<unknown>;
+    /** Positional arguments, as in the SDK: get(resource, type, id, extra, config). */
+    get(resource: string, type: string, id: string, extra?: Record<string, string>, config?: unknown): Promise<unknown>;
   }
 
   export class addonBuilder {

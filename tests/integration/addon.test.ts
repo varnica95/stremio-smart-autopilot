@@ -38,7 +38,7 @@ describe('addon (stream resource)', () => {
       makeCandidate({ id: 'cam', source: 'cam', title: 'Movie CAM' }),
     ]);
     const app = await appWith({ streamProviders: [provider], subtitleProviders: [] });
-    const res = (await app.addonInterface.get({ resource: 'stream', type: 'movie', id: 'tt0032138', extra: {} })) as {
+    const res = (await app.addonInterface.get('stream', 'movie', 'tt0032138', {})) as {
       streams: Array<{ name: string; description: string; url?: string }>;
       cacheMaxAge: number;
     };
@@ -51,7 +51,7 @@ describe('addon (stream resource)', () => {
   it('applies per-user configuration passed by Stremio', async () => {
     const provider = new FakeStreamProvider('fake', async () => [makeCandidate({ id: 'a' }), makeCandidate({ id: 'b' }), makeCandidate({ id: 'c' })]);
     const app = await appWith({ streamProviders: [provider], subtitleProviders: [] });
-    const res = (await app.addonInterface.get({ resource: 'stream', type: 'movie', id: 'tt0032138', extra: {}, config: { maxResults: 1 } })) as {
+    const res = (await app.addonInterface.get('stream', 'movie', 'tt0032138', {}, { maxResults: 1 })) as {
       streams: unknown[];
     };
     expect(res.streams).toHaveLength(1);
@@ -64,7 +64,7 @@ describe('addon (stream resource)', () => {
     const slow = new FakeStreamProvider('slow', (_m, ctx) => delay(10_000, [makeCandidate()], ctx.signal));
     const ok = new FakeStreamProvider('ok', async () => [makeCandidate({ transport: torrentTransport(), seeders: 30 })]);
     const app = await appWith({ streamProviders: [broken, slow, ok], subtitleProviders: [] }, { PROVIDER_TIMEOUT_MS: '500' });
-    const res = (await app.addonInterface.get({ resource: 'stream', type: 'series', id: 'tt0944947:1:5', extra: {} })) as {
+    const res = (await app.addonInterface.get('stream', 'series', 'tt0944947:1:5', {})) as {
       streams: Array<{ infoHash?: string }>;
     };
     expect(res.streams).toHaveLength(1);
@@ -76,7 +76,7 @@ describe('addon (stream resource)', () => {
       throw new Error('down');
     }, 'Broken Source');
     const app = await appWith({ streamProviders: [broken], subtitleProviders: [] });
-    const res = (await app.addonInterface.get({ resource: 'stream', type: 'movie', id: 'tt0032138', extra: {} })) as {
+    const res = (await app.addonInterface.get('stream', 'movie', 'tt0032138', {})) as {
       streams: Array<{ description: string; externalUrl?: string }>;
     };
     expect(res.streams).toHaveLength(1);
@@ -86,7 +86,7 @@ describe('addon (stream resource)', () => {
 
   it('ignores ids it does not handle', async () => {
     const app = await appWith({ streamProviders: [], subtitleProviders: [] });
-    const res = (await app.addonInterface.get({ resource: 'stream', type: 'movie', id: 'kitsu:123', extra: {} })) as { streams: unknown[] };
+    const res = (await app.addonInterface.get('stream', 'movie', 'kitsu:123', {})) as { streams: unknown[] };
     expect(res.streams).toEqual([]);
   });
 
@@ -110,12 +110,7 @@ describe('addon (subtitles resource)', () => {
     ]);
     const app = await appWith({ streamProviders: [], subtitleProviders: [subs] });
     expect(app.addonInterface.manifest.resources).toEqual(['stream', 'subtitles']);
-    const res = (await app.addonInterface.get({
-      resource: 'subtitles',
-      type: 'movie',
-      id: 'tt0032138',
-      extra: { videoHash: '0123456789abcdef', videoSize: '1000', filename: 'Movie.2020.1080p.WEB-DL.x264-GRP.mkv' },
-    })) as { subtitles: Array<{ id: string; url: string; lang: string }> };
+    const res = (await app.addonInterface.get('subtitles', 'movie', 'tt0032138', { videoHash: '0123456789abcdef', videoSize: '1000', filename: 'Movie.2020.1080p.WEB-DL.x264-GRP.mkv' })) as { subtitles: Array<{ id: string; url: string; lang: string }> };
     expect(res.subtitles.map((s) => s.lang)).toEqual(['hrv', 'eng']);
     for (const s of res.subtitles) {
       expect(Object.keys(s).sort()).toEqual(['id', 'lang', 'url']);
@@ -186,7 +181,7 @@ describe('companion failover proxy', () => {
     const app = await appWith({ streamProviders: [provider], subtitleProviders: [] }, { COMPANION_ENABLED: 'true' });
     const base = await listen((req, res) => void app.requestHandler(req, res));
 
-    const res = (await app.addonInterface.get({ resource: 'stream', type: 'movie', id: 'tt0032138', extra: {} })) as {
+    const res = (await app.addonInterface.get('stream', 'movie', 'tt0032138', {})) as {
       streams: Array<{ url: string; description: string }>;
     };
     const first = res.streams[0];
