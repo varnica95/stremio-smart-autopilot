@@ -84,6 +84,25 @@ describe('addon (stream resource)', () => {
     expect(res.streams[0]?.externalUrl).toContain('/status');
   });
 
+  it('returns an empty list, not an error, when no source covers the title type', async () => {
+    const moviesOnly = new FakeStreamProvider('movies', async () => [makeCandidate()]);
+    moviesOnly.supports = (media) => media.type === 'movie';
+    const app = await appWith({ streamProviders: [moviesOnly], subtitleProviders: [] });
+    const res = (await app.addonInterface.get('stream', 'series', 'tt0944947:1:1', {})) as { streams: unknown[] };
+    expect(res.streams).toEqual([]);
+  });
+
+  it('lists provider failures with their cause on the status page', async () => {
+    const broken = new FakeStreamProvider('broken', async () => {
+      throw new Error('title metadata unavailable');
+    }, 'Broken Source');
+    const app = await appWith({ streamProviders: [broken], subtitleProviders: [] });
+    await app.addonInterface.get('stream', 'movie', 'tt0032138', {});
+    const base = await listen((req, res) => void app.requestHandler(req, res));
+    const html = await (await fetch(`${base}/status`)).text();
+    expect(html).toContain('title metadata unavailable');
+  });
+
   it('ignores ids it does not handle', async () => {
     const app = await appWith({ streamProviders: [], subtitleProviders: [] });
     const res = (await app.addonInterface.get('stream', 'movie', 'kitsu:123', {})) as { streams: unknown[] };

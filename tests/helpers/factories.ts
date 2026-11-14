@@ -65,7 +65,7 @@ export class FakeStreamProvider implements StreamProvider {
     readonly name = id,
   ) {}
 
-  supports(): boolean {
+  supports(_media?: MediaRequest): boolean {
     return true;
   }
 

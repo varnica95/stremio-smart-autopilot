@@ -25,6 +25,7 @@ import { StreamDiscoveryService } from './services/stream-discovery/discovery-se
 import { MetadataService } from './services/stream-discovery/metadata-service.js';
 import { StreamProber } from './services/stream-discovery/stream-prober.js';
 import { StreamService } from './services/stream-ranking/stream-service.js';
+import { ErrorLog } from './services/diagnostics/error-log.js';
 import { SubtitleService } from './services/subtitle-matching/subtitle-service.js';
 import { createAddonInterface } from './stremio/addon.js';
 import { buildManifest } from './stremio/manifest/manifest.js';
@@ -109,6 +110,7 @@ export async function createApp(config: ServerConfig, logger: Logger, overrides:
     ? new FailoverProxy(sessions, reliability, fetchImpl, logger.child({ svc: 'companion' }), { connectTimeoutMs: 8000 })
     : undefined;
 
+  const errorLog = new ErrorLog();
   const manifest = buildManifest({
     peerToPeer: streamProviders.some((p) => p.peerToPeer),
     subtitlesEnabled: subtitleService.enabled,
@@ -116,7 +118,7 @@ export async function createApp(config: ServerConfig, logger: Logger, overrides:
   });
   const addonInterface = createAddonInterface(
     manifest,
-    { streamService, defaults: config.defaultPreferences, publicUrl: config.publicUrl, logger, companion: sessions },
+    { streamService, defaults: config.defaultPreferences, publicUrl: config.publicUrl, logger, companion: sessions, errorLog },
     subtitleService.enabled ? { subtitleService, defaults: config.defaultPreferences, logger } : undefined,
   );
 
@@ -145,6 +147,7 @@ export async function createApp(config: ServerConfig, logger: Logger, overrides:
       })),
       hosts: reliability.list('host:', 30),
       sessions: sessions?.recent(20) ?? [],
+      problems: errorLog.recent(),
       now: Date.now(),
     }),
   });

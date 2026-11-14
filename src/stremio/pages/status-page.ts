@@ -1,11 +1,13 @@
 import type { ReliabilityStats } from '../../core/interfaces/stores.js';
 import type { FailoverSession } from '../../companion/failover-sessions.js';
+import type { ProblemEntry } from '../../services/diagnostics/error-log.js';
 import { formatAge, formatBytes, formatRate } from '../../utils/format.js';
 
 export interface StatusContext {
   providers: Array<{ id: string; name: string; api?: ReliabilityStats; streams?: ReliabilityStats }>;
   hosts: Array<{ key: string; stats: ReliabilityStats }>;
   sessions: FailoverSession[];
+  problems: ProblemEntry[];
   now: number;
 }
 
@@ -42,6 +44,10 @@ export function renderStatusPage(ctx: StatusContext): string {
     )
     .join('');
 
+  const problemRows = ctx.problems
+    .map((p) => `<tr><td class="muted">${formatAge(ctx.now - p.at)}</td><td>${esc(p.context)}</td><td class="warn">${esc(p.message)}</td></tr>`)
+    .join('');
+
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Smart AutoPilot · status</title>
 <style>
@@ -53,6 +59,8 @@ export function renderStatusPage(ctx: StatusContext): string {
 <p class="muted">Reliability is a time-weighted success rate that fades back to neutral within hours, so a temporary outage is forgiven quickly.</p>
 <h2>Providers</h2>
 <table><tr><th>Provider</th><th>API answered</th><th>Streams worked</th></tr>${providerRows || '<tr><td colspan="3" class="muted">No providers enabled.</td></tr>'}</table>
+<h2>Recent problems</h2>
+<table><tr><th>When</th><th>Where</th><th>Error</th></tr>${problemRows || '<tr><td colspan="3" class="muted">None since the server started.</td></tr>'}</table>
 <h2>Hosts</h2>
 <table><tr><th>Host</th><th>Reliability</th><th>Measured speed</th></tr>${hostRows || '<tr><td colspan="3" class="muted">No hosts tested yet.</td></tr>'}</table>
 <h2>Recent playback (companion)</h2>
