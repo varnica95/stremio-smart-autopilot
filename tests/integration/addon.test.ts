@@ -86,7 +86,7 @@ describe('addon (stream resource)', () => {
 
   it('returns an empty list, not an error, when no source covers the title type', async () => {
     const moviesOnly = new FakeStreamProvider('movies', async () => [makeCandidate()]);
-    moviesOnly.supports = (media) => media.type === 'movie';
+    moviesOnly.supports = (media) => media?.type === 'movie';
     const app = await appWith({ streamProviders: [moviesOnly], subtitleProviders: [] });
     const res = (await app.addonInterface.get('stream', 'series', 'tt0944947:1:1', {})) as { streams: unknown[] };
     expect(res.streams).toEqual([]);
