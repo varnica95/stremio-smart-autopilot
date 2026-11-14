@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "imdbId": "tt0032138",
+      "url": "http://192.168.1.20:8080/movies/The.Wizard.of.Oz.1939.1080p.BluRay.x264.mkv",
+      "sizeBytes": 9800000000
+    },
+    {
+      "imdbId": "tt0944947",
+      "season": 1,
+      "episode": 1,
+      "url": "http://192.168.1.20:8080/series/got/S01E01.1080p.WEB-DL.H.264.mp4",
+      "title": "Game of Thrones S01E01 (my rip)"
+    }
+  ]
+}

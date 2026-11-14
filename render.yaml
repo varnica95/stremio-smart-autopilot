@@ -1,0 +1,20 @@
+# Render Blueprint: one free Node web service with HTTPS.
+# In Render: New → Blueprint → pick this repository.
+services:
+  - type: web
+    name: smart-autopilot
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Free instances have no persistent disk; keep caches in memory.
+      - key: DATABASE_PATH
+        value: ""
+      - key: OPENSUBTITLES_API_KEY
+        sync: false
+      - key: TMDB_API_KEY
+        sync: false
