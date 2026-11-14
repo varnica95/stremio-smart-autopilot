@@ -76,6 +76,17 @@ function json(env: Env, key: string): unknown {
   }
 }
 
+/** PUBLIC_URL if set; otherwise the address the hosting platform announces; otherwise localhost. */
+function detectPublicUrl(env: Env, port: number): string {
+  const flyApp = str(env, 'FLY_APP_NAME');
+  const url =
+    str(env, 'PUBLIC_URL') ??
+    str(env, 'RENDER_EXTERNAL_URL') ?? // set automatically on Render
+    (flyApp ? `https://${flyApp}.fly.dev` : undefined) ?? // FLY_APP_NAME is set automatically on Fly.io
+    `http://127.0.0.1:${port}`;
+  return url.replace(/\/+$/, '');
+}
+
 export class ConfigError extends Error {
   override name = 'ConfigError';
 }
@@ -86,8 +97,7 @@ export function loadServerConfig(env: Env = process.env): ServerConfig {
   const raw = {
     port,
     host: str(env, 'HOST') ?? '0.0.0.0',
-    // RENDER_EXTERNAL_URL is set automatically on Render.
-    publicUrl: (str(env, 'PUBLIC_URL') ?? str(env, 'RENDER_EXTERNAL_URL') ?? `http://127.0.0.1:${port}`).replace(/\/+$/, ''),
+    publicUrl: detectPublicUrl(env, port),
     logLevel: str(env, 'LOG_LEVEL') ?? 'info',
     databasePath: env.DATABASE_PATH !== undefined ? env.DATABASE_PATH.trim() : './data/autopilot.db',
     providerTimeoutMs: num(env, 'PROVIDER_TIMEOUT_MS', 6000),

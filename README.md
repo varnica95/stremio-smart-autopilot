@@ -102,6 +102,16 @@ The server prints its URLs on start:
 
 `PUBLIC_URL` is filled in automatically from Render's `RENDER_EXTERNAL_URL`. Free instances sleep after about 15 minutes idle, so the first request after a break takes up to a minute. Link tests then describe Render's network, not yours.
 
+### Deploy to Fly.io (works from a phone)
+
+1. Push this project to a GitHub repository.
+2. In the Fly.io dashboard: **Launch an App → GitHub**, choose the repository. Fly builds the included `Dockerfile` using `fly.toml`.
+3. If the app name `stremio-smart-autopilot` is taken, pick another; the address becomes `https://<name>.fly.dev` and is detected automatically from `FLY_APP_NAME`.
+4. Optionally add secrets `OPENSUBTITLES_API_KEY` / `TMDB_API_KEY` (users can also enter their own OpenSubtitles key on `/configure`).
+5. Open `https://<name>.fly.dev/configure` and install.
+
+Fly.io has no free tier (a short trial, then a credit card). The machine stops when idle and starts on the next request, so the first request after a pause takes a few seconds.
+
 ## Configuration
 
 There are two levels.

@@ -1,0 +1,31 @@
+# Fly.io configuration. Launch from the dashboard (Launch an App → GitHub) or with `fly launch`.
+# Change `app` if the name is taken; the public URL becomes https://<app>.fly.dev
+app = "stremio-smart-autopilot"
+primary_region = "fra"
+
+[build]
+
+[env]
+  PORT = "8080"
+  # No volume attached: keep caches in memory.
+  DATABASE_PATH = ""
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Stop the machine when idle and start it on the next request, so you mostly pay while watching.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"

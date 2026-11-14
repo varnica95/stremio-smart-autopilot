@@ -74,6 +74,12 @@ describe('server configuration', () => {
     expect(config.defaultPreferences).toEqual(DEFAULT_PREFERENCES);
   });
 
+  it('detects the public URL on Render and Fly.io, with PUBLIC_URL taking priority', () => {
+    expect(loadServerConfig({ RENDER_EXTERNAL_URL: 'https://x.onrender.com/' }).publicUrl).toBe('https://x.onrender.com');
+    expect(loadServerConfig({ FLY_APP_NAME: 'my-app' }).publicUrl).toBe('https://my-app.fly.dev');
+    expect(loadServerConfig({ FLY_APP_NAME: 'my-app', PUBLIC_URL: 'https://tv.example.com' }).publicUrl).toBe('https://tv.example.com');
+  });
+
   it('rejects invalid values with a readable message', () => {
     expect(() => loadServerConfig({ PORT: 'abc' })).toThrow(/port/);
     expect(() => loadServerConfig({ UPSTREAM_ADDONS: '[{"id":"x"}]' })).toThrow(/upstreamAddons/);
